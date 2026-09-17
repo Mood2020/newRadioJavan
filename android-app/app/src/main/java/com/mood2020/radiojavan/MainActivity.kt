@@ -202,7 +202,7 @@ class MainActivity : AppCompatActivity() {
                 setStatus("در حال بررسی لینک و اجرای GitHub Actions...", false)
                 val knownRuns = withContext(Dispatchers.IO) { api.listRuns().map { it.id }.toSet() }
                 withContext(Dispatchers.IO) { api.dispatch(link) }
-                val run = waitForNewRun(api, knownRuns, startedAt)
+                val run = waitForNewRun(api, knownRuns)
                 val completed = waitForCompletion(api, run.id)
                 if (completed.conclusion != "success") {
                     throw IOException("اجرای Workflow موفق نبود: ${completed.conclusion ?: "نامشخص"}")
@@ -218,10 +218,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun waitForNewRun(api: GitHubApi, known: Set<Long>, startedAt: Long): RunInfo {
+    private suspend fun waitForNewRun(api: GitHubApi, known: Set<Long>): RunInfo {
         repeat(30) {
             val run = withContext(Dispatchers.IO) {
-                api.listRuns().firstOrNull { it.id !in known && it.createdAt >= startedAt - 15_000 }
+                // Run IDs are monotonic; this avoids relying on the phone clock.
+                api.listRuns().firstOrNull { it.id !in known }
             }
             if (run != null) return run
             setStatus("در انتظار شروع Workflow...", false)
