@@ -22,7 +22,7 @@ PAGE_HOSTS = {
     "play.radiojavan.com",
     "www.play.radiojavan.com",
 }
-MEDIA_DOMAIN = ".radiojavan.com"
+MEDIA_DOMAINS = ("radiojavan.com", "rjmedia-content.app")
 MAX_REDIRECTS = 4
 MAX_PAGE_BYTES = 5 * 1024 * 1024
 MAX_MEDIA_BYTES = 100 * 1024 * 1024
@@ -67,7 +67,10 @@ def host_is_allowed(host: str, role: str) -> bool:
     host = host.lower().rstrip(".")
     if role == "page":
         return host in PAGE_HOSTS
-    return host in PAGE_HOSTS or host.endswith(MEDIA_DOMAIN)
+    return any(
+    host == domain or host.endswith(f".{domain}")
+    for domain in MEDIA_DOMAINS
+)
 
 
 def reject_private_dns(host: str) -> None:
