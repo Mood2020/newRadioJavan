@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       podcast_url:
-        description: "Radio Javan podcast or track URL"
+        description: "Direct, rj.app, or Radio Javan redirect link"
         required: true
         type: string
 
