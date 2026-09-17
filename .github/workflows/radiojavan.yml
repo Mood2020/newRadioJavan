@@ -1,0 +1,61 @@
+name: Radio Javan Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      podcast_url:
+        description: "Radio Javan podcast or track URL"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Prevent two runs from uploading/replacing the same Release asset at once.
+concurrency:
+  group: radiojavan-download-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  download-podcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download and validate MP3
+        id: download
+        env:
+          INPUT_URL: ${{ inputs.podcast_url }}
+        run: python scripts/download_podcast.py "$INPUT_URL"
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FILE_PATH: ${{ steps.download.outputs.file_path }}
+          REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          release_tag="radiojavan-downloads"
+
+          if gh release view "$release_tag" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$release_tag" "$FILE_PATH" --clobber --repo "$REPOSITORY"
+          else
+            gh release create "$release_tag" "$FILE_PATH" \
+              --repo "$REPOSITORY" \
+              --target "$TARGET_SHA" \
+              --title "Radio Javan Downloads" \
+              --notes "Audio files downloaded through the Radio Javan Downloader workflow."
+          fi
+
+          gh release view "$release_tag" --repo "$REPOSITORY" --json url --jq '.url'
