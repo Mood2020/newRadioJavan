@@ -1,0 +1,67 @@
+name: Build Radio Javan Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/build-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        run: gradle --project-dir android assembleDebug --no-daemon
+
+      - name: Prepare APK
+        run: |
+          mkdir -p android/dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk android/dist/radiojavan-downloader.apk
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: radiojavan-downloader-apk
+          path: android/dist/radiojavan-downloader.apk
+
+      - name: Publish APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          release_tag="android-latest"
+          asset="android/dist/radiojavan-downloader.apk"
+
+          if gh release view "$release_tag" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$release_tag" "$asset" --clobber --repo "$REPOSITORY"
+          else
+            gh release create "$release_tag" "$asset" \
+              --repo "$REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Radio Javan Downloader Android" \
+              --notes "Latest installable debug APK built from main."
+          fi
