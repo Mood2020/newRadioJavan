@@ -12,7 +12,7 @@ import socket
 import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
@@ -22,6 +22,7 @@ PAGE_HOSTS = {
     "play.radiojavan.com",
     "www.play.radiojavan.com",
 }
+SHARE_HOSTS = {"rj.app", "www.rj.app"}
 # Radio Javan currently serves podcast audio from this CDN.
 MEDIA_DOMAINS = ("radiojavan.com", "rjmedia-content.app")
 MAX_REDIRECTS = 4
@@ -68,6 +69,8 @@ def host_is_allowed(host: str, role: str) -> bool:
     host = host.lower().rstrip(".")
     if role == "page":
         return host in PAGE_HOSTS
+    if role == "share":
+        return host in PAGE_HOSTS or host in SHARE_HOSTS
     return any(host == domain or host.endswith(f".{domain}") for domain in MEDIA_DOMAINS)
 
 
@@ -145,6 +148,36 @@ def read_page(url: str) -> tuple[str, str]:
     if len(content) > MAX_PAGE_BYTES:
         raise fail("The page is larger than the allowed limit")
     return content.decode("utf-8", errors="replace"), final_url
+
+
+def canonical_page_url(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/") or "/", "", ""))
+
+
+def resolve_input_url(source_url: str) -> str:
+    """Convert direct, short, and app deep links to a web page URL."""
+    parts = urlsplit(source_url)
+    host = (parts.hostname or "").lower().rstrip(".")
+
+    if host in SHARE_HOSTS:
+        validate_url(source_url, "share")
+        response, resolved_url = safe_open(source_url, "share", PAGE_HEADERS)
+        response.close()
+        resolved_parts = urlsplit(resolved_url)
+        if not host_is_allowed(resolved_parts.hostname or "", "page"):
+            raise fail("The short link did not resolve to a Radio Javan page")
+        return canonical_page_url(resolved_url)
+
+    validate_url(source_url, "page")
+    if host == "play.radiojavan.com" and parts.path.rstrip("/") == "/redirect":
+        deep_link = parse_qs(parts.query).get("r", [""])[0]
+        match = re.fullmatch(r"radiojavan://(podcast|song)/([A-Za-z0-9_-]+)", deep_link)
+        if not match:
+            raise fail("Unsupported Radio Javan app link")
+        return f"https://play.radiojavan.com/{match.group(1)}/{match.group(2)}"
+
+    return canonical_page_url(source_url)
 
 
 def normalize_candidate(raw: str, page_url: str) -> str:
@@ -242,10 +275,10 @@ def main() -> int:
 
     source_url = sys.argv[1].strip()
     try:
-        validate_url(source_url, "page")
-        page, final_page_url = read_page(source_url)
+        page_url = resolve_input_url(source_url)
+        page, final_page_url = read_page(page_url)
         media_url = extract_media_url(page, final_page_url)
-        destination = Path("podcasts") / safe_filename(source_url)
+        destination = Path("podcasts") / safe_filename(page_url)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
             raise fail(f"Refusing to overwrite existing file: {destination}")
