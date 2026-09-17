@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "android/**"
+      - "android-app/**"
       - ".github/workflows/build-android.yml"
   workflow_dispatch:
 
@@ -33,19 +34,29 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Locate Android project
+        run: |
+          if [ -d android ]; then
+            echo "PROJECT_DIR=android" >> "$GITHUB_ENV"
+          elif [ -d android-app ]; then
+            echo "PROJECT_DIR=android-app" >> "$GITHUB_ENV"
+          else
+            echo "Android project folder was not found" >&2
+            exit 1
+          fi
+
       - name: Build debug APK
-        run: gradle --project-dir android assembleDebug --no-daemon
+        run: gradle --project-dir "$PROJECT_DIR" assembleDebug --no-daemon
 
       - name: Prepare APK
         run: |
-          mkdir -p android/dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk android/dist/radiojavan-downloader.apk
+          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" radiojavan-downloader.apk
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: radiojavan-downloader-apk
-          path: android/dist/radiojavan-downloader.apk
+          path: radiojavan-downloader.apk
 
       - name: Publish APK to GitHub Release
         env:
@@ -54,7 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           release_tag="android-latest"
-          asset="android/dist/radiojavan-downloader.apk"
+          asset="radiojavan-downloader.apk"
 
           if gh release view "$release_tag" --repo "$REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$release_tag" "$asset" --clobber --repo "$REPOSITORY"
