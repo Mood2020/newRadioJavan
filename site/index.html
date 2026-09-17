@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131f">
+  <title>Radio Javan Downloader</title>
+  <style>
+    :root { --bg:#10131f; --panel:#171c2c; --panel2:#1d2438; --line:#303a55; --text:#f4f6ff; --muted:#aab4ca; --accent:#ff7a59; --accent2:#9a7cff; --ok:#5ee0ac; --bad:#ff7783; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--text); background:radial-gradient(circle at 10% -5%,#2e315a 0,transparent 33%),radial-gradient(circle at 90% 20%,#3d2636 0,transparent 26%),var(--bg); font:16px/1.8 Tahoma,Arial,sans-serif; }
+    a { color:inherit; }
+    .shell { max-width:1120px; margin:auto; padding:26px 20px 70px; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-bottom:54px; }
+    .brand { display:flex; align-items:center; gap:11px; font-weight:bold; letter-spacing:.02em; }
+    .logo { display:grid; place-items:center; width:40px; height:40px; border-radius:13px; color:#16131c; background:linear-gradient(135deg,var(--accent),#ffd166); box-shadow:0 8px 28px #ff7a5933; font-weight:900; }
+    .header-link { color:var(--muted); text-decoration:none; font-size:14px; }
+    .header-link:hover { color:var(--text); }
+    .hero { max-width:760px; margin-bottom:32px; }
+    .eyebrow { color:#ffc29d; font-size:13px; letter-spacing:.1em; }
+    h1 { max-width:700px; margin:5px 0 12px; font-size:clamp(34px,6vw,66px); line-height:1.12; letter-spacing:-.04em; }
+    .hero p { color:var(--muted); max-width:640px; margin:0; font-size:17px; }
+    .layout { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr); gap:18px; align-items:start; }
+    .card { border:1px solid var(--line); border-radius:22px; background:linear-gradient(145deg,#1b2134e8,#131827e8); box-shadow:0 24px 70px #00000026; padding:25px; }
+    .main-card { padding:30px; }
+    .card-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:22px; }
+    h2,h3 { margin:0; line-height:1.3; }
+    h2 { font-size:23px; }
+    h3 { font-size:17px; }
+    .caption { color:var(--muted); font-size:13px; margin-top:4px; }
+    .pill { display:inline-flex; align-items:center; border:1px solid #445170; color:#cbd4ed; border-radius:999px; padding:4px 10px; font-size:12px; white-space:nowrap; }
+    .input-wrap { display:flex; gap:10px; padding:7px; border:1px solid #3a486a; border-radius:16px; background:#0e1320; transition:.2s; }
+    .input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 4px #ff7a5918; }
+    .input-wrap .primary { width:auto; margin-top:0; white-space:nowrap; }
+    input { min-width:0; flex:1; border:0; outline:0; color:var(--text); background:transparent; font:15px Tahoma,Arial,sans-serif; direction:ltr; text-align:left; padding:10px 12px; }
+    input::placeholder { color:#68748d; }
+    button { border:0; cursor:pointer; font:inherit; }
+    .primary { width:100%; margin-top:13px; border-radius:14px; padding:13px 18px; color:#18121a; background:linear-gradient(100deg,#ff8a5b,#ffc05d); font-weight:bold; box-shadow:0 12px 26px #ff895533; transition:transform .2s,filter .2s; }
+    .primary:hover { transform:translateY(-1px); filter:brightness(1.06); }
+    .primary:disabled { cursor:wait; opacity:.55; transform:none; }
+    .detected { display:flex; gap:8px; align-items:center; min-height:28px; margin-top:10px; color:var(--muted); font-size:13px; }
+    .detected strong { color:var(--text); }
+    .examples { margin-top:24px; padding-top:20px; border-top:1px solid #2b3550; }
+    .examples-title { color:var(--muted); font-size:13px; margin-bottom:8px; }
+    .example { display:block; width:100%; overflow:hidden; margin:6px 0; padding:9px 11px; border:1px solid transparent; border-radius:10px; color:#c4ccea; background:#111727; font:12px/1.5 Consolas,monospace; direction:ltr; text-align:left; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+    .example:hover { border-color:#455171; color:var(--text); }
+    .side { display:grid; gap:18px; }
+    .steps { display:grid; gap:9px; margin-top:16px; }
+    .step { display:grid; grid-template-columns:30px 1fr; gap:10px; align-items:start; padding:10px; border-radius:13px; color:var(--muted); background:#111727; }
+    .step-dot { display:grid; place-items:center; width:27px; height:27px; border:1px solid #455171; border-radius:50%; color:#8390aa; font-size:12px; }
+    .step strong { display:block; color:#dbe2f4; font-size:14px; }
+    .step small { display:block; font-size:12px; line-height:1.5; }
+    .step.active { border:1px solid #765e4d; background:#2b2021; }
+    .step.active .step-dot { border-color:var(--accent); color:#ffd0b4; animation:pulse 1.3s infinite; }
+    .step.done .step-dot { border-color:var(--ok); color:var(--ok); }
+    .step.done strong { color:var(--ok); }
+    .step.fail { border:1px solid #71414b; background:#2a1b25; }
+    .step.fail .step-dot { border-color:var(--bad); color:var(--bad); }
+    @keyframes pulse { 50% { box-shadow:0 0 0 5px #ff7a5920; } }
+    .token-box { background:linear-gradient(145deg,#22253f,#1c1b31); }
+    .token-box p { color:var(--muted); font-size:13px; margin:10px 0 13px; }
+    .token-box input { width:100%; display:block; padding:11px 12px; border:1px solid #3b4667; border-radius:11px; background:#111524; }
+    .check { display:flex; gap:8px; align-items:center; color:#c2cbe0; margin-top:9px; font-size:12px; }
+    .check input { flex:0 0 auto; width:15px; height:15px; accent-color:var(--accent); }
+    .ghost { margin-top:12px; padding:7px 0; color:#bcc6df; background:transparent; font-size:13px; text-decoration:underline; }
+    .manual { display:block; margin-top:12px; color:#c6b9ff; font-size:13px; text-decoration:none; }
+    .manual:hover { text-decoration:underline; }
+    .notice { display:none; margin-top:15px; padding:11px 13px; border-radius:12px; color:#ffd8d8; background:#3a2029; border:1px solid #713f4d; font-size:13px; }
+    .notice.show { display:block; }
+    .result { display:none; margin-top:18px; padding:18px; border:1px solid #3d876b; border-radius:16px; background:#142a29; }
+    .result.show { display:block; }
+    .result p { color:#b8dbc9; font-size:13px; margin:7px 0 12px; }
+    .download { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:11px 13px; border-radius:11px; color:#162019; background:var(--ok); text-decoration:none; font-weight:bold; }
+    .download span { overflow:hidden; direction:ltr; text-overflow:ellipsis; white-space:nowrap; }
+    .release-link { display:inline-block; margin-top:11px; color:#a9f1d1; font-size:13px; }
+    footer { display:flex; justify-content:space-between; gap:15px; margin-top:34px; color:#78839b; font-size:12px; }
+    footer a { color:#a9b8d5; }
+    @media (max-width:800px) { header { margin-bottom:36px; } .layout { grid-template-columns:1fr; } .side { grid-template-columns:1fr 1fr; } }
+    @media (max-width:560px) { .shell { padding:18px 14px 46px; } header { align-items:flex-start; } .header-link { display:none; } .main-card { padding:21px; } .side { grid-template-columns:1fr; } .input-wrap { display:block; padding:4px; } .input-wrap input { width:100%; } .input-wrap .primary { width:100%; margin-top:5px; } footer { display:block; } footer span { display:block; margin-top:7px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><span class="logo">RJ</span><span>Radio Javan Downloader</span></div>
+      <a class="header-link" href="https://github.com/Mood2020/newRadioJavan" target="_blank" rel="noreferrer">مشاهده پروژه در GitHub ↗</a>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">FAST · SIMPLE · YOUR RELEASE</div>
+      <h1>لینک را بده، فایل آماده می‌شود.</h1>
+      <p>لینک مستقیم، لینک کوتاه یا لینک اشتراکی Radio Javan را وارد کن. سیستم لینک را تشخیص می‌دهد، Action را اجرا می‌کند و در پایان فایل آماده دانلود را تحویل می‌دهد.</p>
+    </section>
+
+    <div class="layout">
+      <section class="card main-card">
+        <div class="card-head"><div><h2>شروع دانلود</h2><div class="caption">فقط لینک را وارد کن؛ بقیه مراحل خودکار است.</div></div><span class="pill">سه نوع لینک</span></div>
+        <div class="input-wrap"><input id="urlInput" type="url" autocomplete="off" placeholder="https://play.radiojavan.com/podcast/..." aria-label="Radio Javan URL"><button id="startButton" class="primary" type="button">شروع پردازش</button></div>
+        <div id="detected" class="detected">نوع لینک بعد از ورود اینجا نمایش داده می‌شود.</div>
+        <div id="notice" class="notice" role="alert"></div>
+        <div id="result" class="result">
+          <h3>فایل آماده است</h3>
+          <p id="resultText">فایل در Release پروژه قرار گرفت.</p>
+          <a id="downloadLink" class="download" href="#" target="_blank" rel="noreferrer"><span>دانلود فایل</span><b>↗</b></a>
+          <a id="releaseLink" class="release-link" href="#" target="_blank" rel="noreferrer">مشاهده Release</a>
+        </div>
+        <div class="examples">
+          <div class="examples-title">برای تست سریع، روی یکی از نمونه‌ها بزن:</div>
+          <button class="example" type="button" data-url="https://play.radiojavan.com/podcast/gheramophone-24">لینک مستقیم · gheramophone-24</button>
+          <button class="example" type="button" data-url="https://rj.app/p/6r9jMXyB?sid=62efeaa84f57a8d6">لینک کوتاه · rj.app</button>
+          <button class="example" type="button" data-url="https://play.radiojavan.com/redirect?r=radiojavan://podcast/5346">لینک اشتراک · redirect</button>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="card"><h3>روند کار</h3><div class="caption">وضعیت اجرای Action اینجا دیده می‌شود.</div><div class="steps">
+          <div id="stepValidate" class="step"><div class="step-dot">1</div><div><strong>بررسی لینک</strong><small>تشخیص نوع و اعتبارسنجی</small></div></div>
+          <div id="stepAction" class="step"><div class="step-dot">2</div><div><strong>اجرای دانلود</strong><small>اجرای GitHub Actions</small></div></div>
+          <div id="stepRelease" class="step"><div class="step-dot">3</div><div><strong>تحویل فایل</strong><small>ساخت لینک Release</small></div></div>
+        </div></section>
+        <section class="card token-box"><h3>اتصال به GitHub</h3><p>برای شروع خودکار، یک Fine-grained token با دسترسی Actions و Contents برای همین مخزن وارد کن. توکن در کد سایت قرار نمی‌گیرد و فقط در همین تب استفاده می‌شود.</p><input id="tokenInput" type="password" autocomplete="off" placeholder="github_pat_..."><label class="check"><input id="rememberToken" type="checkbox"> در این تب نگه دار</label><button id="clearToken" class="ghost" type="button">پاک‌کردن توکن ذخیره‌شده</button><a class="manual" href="https://github.com/Mood2020/newRadioJavan/actions/workflows/radiojavan.yml" target="_blank" rel="noreferrer">بدون توکن، اجرای دستی از GitHub ↗</a></section>
+      </aside>
+    </div>
+    <footer><span>فایل‌ها در Release پروژه منتشر می‌شوند، نه در تاریخچه Git.</span><a href="https://github.com/Mood2020/newRadioJavan/releases/tag/radiojavan-downloads" target="_blank" rel="noreferrer">Releaseها ↗</a></footer>
+  </div>
+  <script>
+    const CONFIG = { owner: "Mood2020", repo: "newRadioJavan", workflow: "radiojavan.yml", ref: "main", releaseTag: "radiojavan-downloads" };
+    const API = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}`;
+    const $ = (id) => document.getElementById(id);
+    const urlInput = $("urlInput"), tokenInput = $("tokenInput"), rememberToken = $("rememberToken");
+    const startButton = $("startButton"), detected = $("detected"), notice = $("notice"), result = $("result");
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const pageHosts = new Set(["radiojavan.com", "www.radiojavan.com", "play.radiojavan.com", "www.play.radiojavan.com"]);
+
+    function classify(value) {
+      try {
+        const url = new URL(value.trim());
+        if (url.protocol !== "https:") return { key: "invalid", label: "فقط HTTPS پذیرفته می‌شود" };
+        if (["rj.app", "www.rj.app"].includes(url.hostname)) return { key: "short", label: "لینک کوتاه rj.app" };
+        if (url.hostname === "play.radiojavan.com" && url.pathname.replace(/\/$/, "") === "/redirect" && /^radiojavan:\/\/(podcast|song)\//.test(url.searchParams.get("r") || "")) return { key: "redirect", label: "لینک اشتراکی Radio Javan" };
+        if (pageHosts.has(url.hostname)) return { key: "direct", label: "لینک مستقیم Radio Javan" };
+        return { key: "invalid", label: "دامنه لینک شناخته نشد" };
+      } catch { return { key: "invalid", label: "لینک کامل وارد نشده است" }; }
+    }
+
+    function updateDetected() {
+      const info = classify(urlInput.value);
+      detected.innerHTML = info.key === "invalid" ? info.label : `نوع لینک: <strong>${info.label}</strong>`;
+      detected.style.color = info.key === "invalid" && urlInput.value ? "var(--bad)" : "var(--muted)";
+    }
+
+    function token() { return tokenInput.value.trim() || sessionStorage.getItem("rj_token") || ""; }
+    function apiHeaders(auth) { return { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }; }
+    async function api(path, auth, options = {}) {
+      const response = await fetch(`${API}${path}`, { ...options, headers: { ...apiHeaders(auth), ...(options.headers || {}) } });
+      if (response.status === 204) return null;
+      let body = null; try { body = await response.json(); } catch {}
+      if (!response.ok) throw new Error(body?.message || `GitHub API error (${response.status})`);
+      return body;
+    }
+
+    function setStep(name, state, message) {
+      const node = $(`step${name[0].toUpperCase()}${name.slice(1)}`);
+      node.className = `step ${state}`;
+      const small = node.querySelector("small");
+      if (message) small.textContent = message;
+      node.querySelector(".step-dot").textContent = state === "done" ? "✓" : state === "fail" ? "!" : name === "validate" ? "1" : name === "action" ? "2" : "3";
+    }
+
+    function resetProgress() { ["validate", "action", "release"].forEach(name => setStep(name, "", null)); result.classList.remove("show"); notice.classList.remove("show"); }
+    function showError(message) { notice.textContent = message; notice.classList.add("show"); }
+    function latestRun(runs, known, startedAt) { return runs.workflow_runs?.find(run => !known.has(run.id) && Date.parse(run.created_at) >= startedAt - 15000) || null; }
+
+    async function waitForRun(auth, known, startedAt) {
+      const deadline = Date.now() + 90000;
+      while (Date.now() < deadline) {
+        const data = await api(`/actions/runs?event=workflow_dispatch&branch=${encodeURIComponent(CONFIG.ref)}&per_page=30`, auth);
+        const run = latestRun(data, known, startedAt);
+        if (run) return run;
+        await sleep(3500);
+      }
+      throw new Error("اجرای جدید GitHub Actions پیدا نشد. صفحه Actions را بررسی کن.");
+    }
+
+    async function waitForCompletion(auth, run) {
+      const deadline = Date.now() + 20 * 60 * 1000;
+      while (Date.now() < deadline) {
+        const current = await api(`/actions/runs/${run.id}`, auth);
+        if (current.status === "completed") return current;
+        setStep("action", "active", current.status === "queued" ? "در صف GitHub" : "در حال دانلود و انتشار فایل");
+        await sleep(5000);
+      }
+      throw new Error("اجرای Action بیش از زمان مجاز طول کشید.");
+    }
+
+    async function findAsset(auth, startedAt) {
+      const deadline = Date.now() + 45000;
+      while (Date.now() < deadline) {
+        const release = await api(`/releases/tags/${CONFIG.releaseTag}`, auth);
+        const assets = [...(release.assets || [])].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+        const fresh = assets.find(asset => Date.parse(asset.updated_at) >= startedAt - 15000) || assets[0];
+        if (fresh) return { release, asset: fresh };
+        await sleep(3000);
+      }
+      throw new Error("Release ساخته شد اما فایل آن هنوز قابل مشاهده نیست.");
+    }
+
+    async function startDownload() {
+      const value = urlInput.value.trim(), info = classify(value), auth = token();
+      if (info.key === "invalid") return showError("لطفاً یکی از سه نوع لینک معتبر Radio Javan را وارد کن.");
+      if (!auth) return showError("برای اجرای خودکار، ابتدا توکن GitHub را در بخش اتصال وارد کن.");
+      if (rememberToken.checked) sessionStorage.setItem("rj_token", auth); else sessionStorage.removeItem("rj_token");
+      resetProgress(); startButton.disabled = true; const startedAt = Date.now();
+      try {
+        setStep("validate", "done", info.label);
+        const before = await api(`/actions/runs?event=workflow_dispatch&branch=${encodeURIComponent(CONFIG.ref)}&per_page=30`, auth);
+        const known = new Set((before.workflow_runs || []).map(run => run.id));
+        setStep("action", "active", "درخواست به GitHub ارسال می‌شود");
+        await api(`/actions/workflows/${CONFIG.workflow}/dispatches`, auth, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: CONFIG.ref, inputs: { podcast_url: value } }) });
+        const run = await waitForRun(auth, known, startedAt);
+        const completed = await waitForCompletion(auth, run);
+        if (completed.conclusion !== "success") throw new Error(`اجرای Workflow موفق نبود: ${completed.conclusion || "نامشخص"}`);
+        setStep("action", "done", "دانلود با موفقیت تمام شد"); setStep("release", "active", "در حال پیدا کردن فایل Release");
+        const found = await findAsset(auth, startedAt);
+        setStep("release", "done", "فایل آماده دانلود است");
+        $("resultText").textContent = `${found.asset.name} · ${(found.asset.size / 1024 / 1024).toFixed(1)} MB`;
+        $("downloadLink").href = found.asset.browser_download_url;
+        $("downloadLink").querySelector("span").textContent = `دانلود ${found.asset.name}`;
+        $("releaseLink").href = found.release.html_url;
+        result.classList.add("show"); result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (error) {
+        setStep("action", "fail", "اجرای ناموفق"); showError(error.message || "خطای ناشناخته رخ داد.");
+      } finally { startButton.disabled = false; }
+    }
+
+    urlInput.addEventListener("input", updateDetected);
+    startButton.addEventListener("click", startDownload);
+    $("clearToken").addEventListener("click", () => { sessionStorage.removeItem("rj_token"); tokenInput.value = ""; rememberToken.checked = false; showError("توکن ذخیره‌شده پاک شد."); });
+    document.querySelectorAll(".example").forEach(button => button.addEventListener("click", () => { urlInput.value = button.dataset.url; updateDetected(); urlInput.focus(); }));
+    const storedToken = sessionStorage.getItem("rj_token"); if (storedToken) { tokenInput.value = storedToken; rememberToken.checked = true; }
+  </script>
+</body>
+</html>
