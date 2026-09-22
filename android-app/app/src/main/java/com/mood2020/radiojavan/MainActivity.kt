@@ -266,7 +266,7 @@ class MainActivity : AppCompatActivity() {
                         },
                         navigationIcon = {
                             Image(
-                                painter = painterResource(R.drawable.ic_launcher),
+                                painter = painterResource(R.drawable.ic_logo_compose),
                                 contentDescription = "Radio Javan",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)),
@@ -513,7 +513,7 @@ private fun HeroCard(onDownload: () -> Unit, onPodcasts: () -> Unit) {
                     modifier = Modifier.size(62.dp).clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Image(painterResource(R.drawable.ic_launcher), "Radio Javan", Modifier.size(52.dp))
+                    Image(painterResource(R.drawable.ic_logo_compose), "Radio Javan", Modifier.size(52.dp))
                 }
                 Spacer(Modifier.width(13.dp))
                 Column {
