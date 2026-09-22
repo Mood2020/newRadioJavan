@@ -159,11 +159,7 @@ class MainActivity : AppCompatActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun RadioJavanApp() {
-        try {
-            RadioJavanContent()
-        } catch (error: Throwable) {
-            ComposeStartupError(error)
-        }
+        RadioJavanContent()
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -358,21 +354,6 @@ class MainActivity : AppCompatActivity() {
     private fun readStoredToken(): String = runCatching {
         securePrefs.getString("github_token", "").orEmpty()
     }.getOrDefault("")
-
-    @Composable
-    private fun ComposeStartupError(error: Throwable) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(Ink).padding(24.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = Orange, modifier = Modifier.size(42.dp))
-                Text("برنامه نتوانست صفحه اصلی را باز کند", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("خطا مهار شد. داده برنامه را پاک کن و دوباره اجرا کن.", color = Muted, fontSize = 13.sp)
-                Text("${error::class.java.simpleName}: ${error.message ?: "بدون توضیح"}", color = Orange, fontSize = 11.sp)
-            }
-        }
-    }
 
     private fun showStartupError(error: Throwable) {
         val message = android.widget.TextView(this).apply {
