@@ -159,10 +159,21 @@ class MainActivity : AppCompatActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun RadioJavanApp() {
+        try {
+            RadioJavanContent()
+        } catch (error: Throwable) {
+            ComposeStartupError(error)
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun RadioJavanContent() {
         val context = LocalContext.current
+        val storedToken = remember { readStoredToken() }
         var selectedTabName by rememberSaveable { mutableStateOf(AppTab.Home.name) }
-        var tokenDraft by rememberSaveable { mutableStateOf(securePrefs.getString("github_token", "").orEmpty()) }
-        var savedToken by rememberSaveable { mutableStateOf(securePrefs.getString("github_token", "").orEmpty()) }
+        var tokenDraft by rememberSaveable { mutableStateOf(storedToken) }
+        var savedToken by rememberSaveable { mutableStateOf(storedToken) }
         var tokenMessage by rememberSaveable { mutableStateOf("") }
         var tokenMessageIsError by rememberSaveable { mutableStateOf(false) }
         var link by rememberSaveable { mutableStateOf("") }
@@ -193,7 +204,12 @@ class MainActivity : AppCompatActivity() {
                 tokenMessage = "توکن معتبر GitHub وارد کن."
                 return
             }
-            securePrefs.edit().putString("github_token", value).apply()
+            val persisted = runCatching { securePrefs.edit().putString("github_token", value).apply() }
+            if (persisted.isFailure) {
+                tokenMessageIsError = true
+                tokenMessage = "ذخیره امن روی این گوشی در دسترس نیست؛ داده برنامه را پاک و دوباره امتحان کن."
+                return
+            }
             savedToken = value
             tokenMessageIsError = false
             tokenMessage = "توکن رمزنگاری‌شده روی همین گوشی ذخیره شد."
@@ -335,6 +351,25 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun readStoredToken(): String = runCatching {
+        securePrefs.getString("github_token", "").orEmpty()
+    }.getOrDefault("")
+
+    @Composable
+    private fun ComposeStartupError(error: Throwable) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Ink).padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = Orange, modifier = Modifier.size(42.dp))
+                Text("برنامه نتوانست صفحه اصلی را باز کند", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("خطا مهار شد. داده برنامه را پاک کن و دوباره اجرا کن.", color = Muted, fontSize = 13.sp)
+                Text("${error::class.java.simpleName}: ${error.message ?: "بدون توضیح"}", color = Orange, fontSize = 11.sp)
             }
         }
     }
