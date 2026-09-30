@@ -191,7 +191,7 @@
       const rawQuery = podcastSearch.value.trim();
       const query = rawQuery.toLocaleLowerCase();
       const source = query ? liveResults : activeKind === "podcast" ? podcastCatalog : [];
-      const filtered = source.filter(item => (!query || `${item.title} ${item.artist || ""}`.toLocaleLowerCase().includes(query)) && (!favoritesOnly || favoriteUrls.has(item.url)));
+      const filtered = source.filter(item => !favoritesOnly || favoriteUrls.has(item.url));
       catalogStatus.textContent = liveLoading ? "در حال جست‌وجوی Radio Javan..." : liveError ? "جست‌وجوی آنلاین موقتاً در دسترس نیست." : `${filtered.length} مورد نمایش داده می‌شود${favoritesOnly ? " · علاقه‌مندی‌ها" : ""}`;
       podcastGrid.replaceChildren();
       if (!filtered.length) {
