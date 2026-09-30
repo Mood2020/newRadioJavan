@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 
 project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(project_root))
+script_dir = project_root / "scripts"
+sys.path.insert(0, str(script_dir if (script_dir / "download_podcast.py").exists() else project_root))
 import download_podcast
 
 
