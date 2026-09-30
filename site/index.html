@@ -209,9 +209,11 @@
       for (const item of filtered) {
         const tile = document.createElement("article"); tile.className = "podcast-tile";
         const art = document.createElement("div"); art.className = "podcast-art";
-        const image = document.createElement("img"); image.src = item.image_url; image.alt = `کاور ${item.title}`;
-        image.width = 256; image.height = 256; image.loading = "lazy"; image.decoding = "async";
-        image.onerror = () => image.remove(); art.append(image);
+        if (item.image_url) {
+          const image = document.createElement("img"); image.src = item.image_url; image.alt = `کاور ${item.title}`;
+          image.width = 256; image.height = 256; image.loading = "lazy"; image.decoding = "async";
+          image.onerror = () => image.remove(); art.append(image);
+        }
         const info = document.createElement("div"); info.className = "podcast-info";
         const title = document.createElement("h3"); title.className = "podcast-title"; title.textContent = item.title;
         const tag = document.createElement("p"); tag.className = "podcast-tag"; tag.textContent = `RADIO JAVAN · ${(item.kind || "podcast").toUpperCase()}${item.artist ? ` · ${item.artist}` : ""}`;
@@ -254,16 +256,51 @@
       return [...new Map(items.map(item => [item.url, item])).values()].slice(0, 50);
     }
 
+    function parseApiSearchResults(data, kind) {
+      const rows = kind === "song" ? data?.mp3s : data?.podcasts;
+      if (!Array.isArray(rows)) throw new Error("Radio Javan search response is missing results.");
+      return rows.flatMap(item => {
+        const permlink = String(item?.permlink || "").trim();
+        const title = String(kind === "song" ? item?.song || item?.title || "" : item?.title || "").trim();
+        if (!/^[A-Za-z0-9_()-]+$/.test(permlink) || !title) return [];
+        let imageUrl = "";
+        try {
+          const image = new URL(item.photo || item.thumbnail || "");
+          if (image.protocol === "https:" && ["assets.rjassets.com", "play.radiojavan.com"].includes(image.hostname)) imageUrl = image.href;
+        } catch {}
+        return [{
+          title,
+          artist: String(kind === "song" ? item.artist || "" : item.podcast_artist || "").trim(),
+          image_url: imageUrl,
+          url: `https://play.radiojavan.com/${kind === "song" ? "song" : "podcast"}/${permlink.toLowerCase()}`,
+          kind,
+        }];
+      }).slice(0, 50);
+    }
+
+    async function fetchLiveResults(query, kind, signal) {
+      const apiUrl = `https://play.radiojavan.com/api/p/search?query=${encodeURIComponent(query)}`;
+      try {
+        const response = await fetch(`https://proxy.cors.dev/${apiUrl}`, { headers: { Accept: "application/json" }, signal });
+        if (!response.ok) throw new Error(`Radio Javan API returned ${response.status}`);
+        return parseApiSearchResults(await response.json(), kind);
+      } catch (error) {
+        if (error.name === "AbortError") throw error;
+        const category = kind === "song" ? "songs" : "podcasts";
+        const readerUrl = `https://r.jina.ai/https://play.radiojavan.com/search/${encodeURIComponent(query)}/${category}`;
+        const response = await fetch(readerUrl, { headers: { Accept: "text/plain" }, signal });
+        if (!response.ok) throw new Error(`Radio Javan search returned ${response.status}`);
+        return parseLiveResults(await response.text(), kind);
+      }
+    }
+
     async function runLiveSearch(query, sequence) {
       liveSearchController = new AbortController();
       try {
-        const category = activeKind === "song" ? "songs" : "podcasts";
-        const target = `https://r.jina.ai/https://play.radiojavan.com/search/${encodeURIComponent(query)}/${category}`;
-        const response = await fetch(target, { headers: { Accept: "text/plain" }, signal: liveSearchController.signal });
-        if (!response.ok) throw new Error(`Radio Javan search returned ${response.status}`);
-        const markdown = await response.text();
+        const kind = activeKind;
+        const items = await fetchLiveResults(query, kind, liveSearchController.signal);
         if (sequence !== liveSearchSequence) return;
-        liveResults = parseLiveResults(markdown, activeKind);
+        liveResults = items;
         liveError = false;
       } catch (error) {
         if (error.name !== "AbortError" && sequence === liveSearchSequence) liveError = true;

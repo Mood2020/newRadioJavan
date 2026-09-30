@@ -21,3 +21,6 @@ Downloaded media is stored as a Release asset instead of being committed to Git 
 Push errors cannot be hidden because the workflow no longer uses `|| true`.
 Important
 Use this workflow only for content you are authorized to download and redistribute. Radio Javan's terms, copyright rules, and the rights of the content owner still apply.
+
+Live search
+Android requests Radio Javan public API search directly. The web page uses proxy.cors.dev because GitHub Pages cannot call Radio Javan cross-origin; both clients use r.jina.ai as a fallback. Search terms are sent to Radio Javan and may also pass through the proxy services.

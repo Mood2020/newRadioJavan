@@ -1149,9 +1149,59 @@ private object RadioJavanSearch {
     private val rowPattern = Regex(
         """^\[!\[Image \d+: (.*?)\]\((https://play\.radiojavan\.com/_next/image\?[^)]*)\)\]\((https://play\.radiojavan\.com/(?:song|podcast)/.*)\)$""",
     )
+    private val permlinkPattern = Regex("^[A-Za-z0-9_()-]+$")
 
     fun search(query: String, type: String): List<MediaItem> {
         require(type == "song" || type == "podcast")
+        return try {
+            searchApi(query, type)
+        } catch (apiError: Exception) {
+            try {
+                searchReader(query, type)
+            } catch (readerError: Exception) {
+                readerError.addSuppressed(apiError)
+                throw readerError
+            }
+        }
+    }
+
+    private fun searchApi(query: String, type: String): List<MediaItem> {
+        val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name()).replace("+", "%20")
+        val connection = (URL("https://play.radiojavan.com/api/p/search?query=$encodedQuery").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 12_000
+            readTimeout = 18_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "RadioJavanDownloader-Android")
+        }
+        return try {
+            val code = connection.responseCode
+            if (code !in 200..299) throw IOException("Radio Javan API returned HTTP $code")
+            val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            if (body.length > 1_000_000) throw IOException("Radio Javan search response was too large")
+            val results = JSONObject(body).optJSONArray(if (type == "song") "mp3s" else "podcasts")
+                ?: throw IOException("Radio Javan search response is missing results")
+            (0 until results.length()).mapNotNull { index ->
+                val item = results.optJSONObject(index) ?: return@mapNotNull null
+                val permlink = item.optString("permlink").trim()
+                if (!permlinkPattern.matches(permlink)) return@mapNotNull null
+                val title = if (type == "song") item.optString("song").ifBlank { item.optString("title") } else item.optString("title")
+                if (title.isBlank()) return@mapNotNull null
+                val photo = item.optString("photo").ifBlank { item.optString("thumbnail") }
+                val photoUri = Uri.parse(photo)
+                val imageUrl = photo.takeIf {
+                    photoUri.scheme == "https" && photoUri.host in setOf("assets.rjassets.com", "play.radiojavan.com")
+                }.orEmpty()
+                val artist = if (type == "song") item.optString("artist") else item.optString("podcast_artist")
+                val pageType = if (type == "song") "song" else "podcast"
+                MediaItem(title.trim(), "https://play.radiojavan.com/$pageType/${permlink.lowercase()}", imageUrl, type, artist.trim())
+            }.distinctBy { it.url }.take(50)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun searchReader(query: String, type: String): List<MediaItem> {
         val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name()).replace("+", "%20")
         val route = if (type == "song") "songs" else "podcasts"
         val connection = (URL("https://r.jina.ai/https://play.radiojavan.com/search/$encodedQuery/$route").openConnection() as HttpURLConnection).apply {
