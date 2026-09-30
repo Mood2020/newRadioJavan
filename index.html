@@ -21,6 +21,28 @@
     h1 { max-width:700px; margin:5px 0 12px; font-size:clamp(34px,6vw,66px); line-height:1.12; letter-spacing:-.04em; }
     .hero p { color:var(--muted); max-width:640px; margin:0; font-size:17px; }
     .layout { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr); gap:18px; align-items:start; }
+    .catalog-card { margin-top:18px; }
+    .catalog-head-actions { display:flex; align-items:center; gap:9px; }
+    .catalog-refresh,.filter-toggle { border:1px solid #3c4969; border-radius:11px; padding:8px 11px; color:#dce3f5; background:#111727; font-size:12px; white-space:nowrap; }
+    .catalog-refresh:hover,.filter-toggle:hover { border-color:#66769e; }
+    .filter-toggle[aria-pressed="true"] { border-color:#ff956b; color:#ffc3a6; background:#2b2021; }
+    .catalog-tools { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; }
+    .catalog-search { width:100%; min-height:44px; border:1px solid #3a486a; border-radius:13px; padding:10px 13px; color:var(--text); background:#0e1320; direction:rtl; text-align:right; }
+    .catalog-search:focus { border-color:var(--accent); outline:3px solid #ff7a5918; }
+    .catalog-status { color:var(--muted); font-size:12px; margin-top:10px; }
+    .podcast-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:13px; margin-top:15px; }
+    .podcast-tile { min-width:0; overflow:hidden; border:1px solid #303a55; border-radius:17px; background:#111727; }
+    .podcast-art { position:relative; width:100%; aspect-ratio:1; overflow:hidden; background:linear-gradient(145deg,#2e315a,#3d2636); }
+    .podcast-art::after { position:absolute; inset:0; display:grid; place-items:center; color:#ffffff80; content:"RJ"; font-size:38px; font-weight:900; }
+    .podcast-art img { position:absolute; z-index:1; width:100%; height:100%; object-fit:cover; }
+    .podcast-info { padding:11px; }
+    .podcast-title { min-height:42px; margin:0; color:var(--text); font-size:14px; font-weight:bold; line-height:1.5; }
+    .podcast-tag { margin:3px 0 10px; color:#8f9bb5; font-size:10px; letter-spacing:.06em; }
+    .podcast-use { width:100%; border-radius:10px; padding:8px; color:#18121a; background:linear-gradient(100deg,#ff8a5b,#ffc05d); font-size:12px; font-weight:bold; }
+    .podcast-utilities { display:flex; justify-content:space-between; gap:8px; margin-top:7px; }
+    .podcast-utilities button { flex:1; border:1px solid #34415f; border-radius:9px; padding:6px; color:#cbd4ed; background:#171c2c; font-size:12px; }
+    .podcast-utilities button.is-active { border-color:#ff956b; color:#ffc3a6; }
+    .catalog-empty { grid-column:1/-1; margin:0; padding:24px 12px; border:1px dashed #3c4969; border-radius:13px; color:var(--muted); text-align:center; font-size:13px; }
     .card { border:1px solid var(--line); border-radius:22px; background:linear-gradient(145deg,#1b2134e8,#131827e8); box-shadow:0 24px 70px #00000026; padding:25px; }
     .main-card { padding:30px; }
     .card-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:22px; }
@@ -76,7 +98,7 @@
     footer { display:flex; justify-content:space-between; gap:15px; margin-top:34px; color:#78839b; font-size:12px; }
     footer a { color:#a9b8d5; }
     @media (max-width:800px) { header { margin-bottom:36px; } .layout { grid-template-columns:1fr; } .side { grid-template-columns:1fr 1fr; } }
-    @media (max-width:560px) { .shell { padding:18px 14px 46px; } header { align-items:flex-start; } .header-link { display:none; } .main-card { padding:21px; } .side { grid-template-columns:1fr; } .input-wrap { display:block; padding:4px; } .input-wrap input { width:100%; } .input-wrap .primary { width:100%; margin-top:5px; } footer { display:block; } footer span { display:block; margin-top:7px; } }
+    @media (max-width:560px) { .shell { padding:18px 14px 46px; } header { align-items:flex-start; } .header-link { display:none; } .main-card { padding:21px; } .side { grid-template-columns:1fr; } .input-wrap { display:block; padding:4px; } .input-wrap input { width:100%; } .input-wrap .primary { width:100%; margin-top:5px; } .catalog-tools { grid-template-columns:1fr; } .catalog-head-actions .pill { display:none; } .podcast-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; } .catalog-card { padding:17px; } .podcast-info { padding:9px; } .podcast-title { font-size:12px; } footer { display:block; } footer span { display:block; margin-top:7px; } }
   </style>
 </head>
 <body>
@@ -121,6 +143,18 @@
         <section class="card token-box"><h3>اتصال به GitHub</h3><p>برای شروع خودکار، یک Fine-grained token با دسترسی Actions و Contents برای همین مخزن وارد کن. توکن در کد سایت قرار نمی‌گیرد و فقط در همین تب استفاده می‌شود.</p><input id="tokenInput" type="password" autocomplete="off" placeholder="github_pat_..."><label class="check"><input id="rememberToken" type="checkbox"> در این تب نگه دار</label><button id="clearToken" class="ghost" type="button">پاک‌کردن توکن ذخیره‌شده</button><a class="manual" href="https://github.com/Mood2020/newRadioJavan/actions/workflows/radiojavan.yml" target="_blank" rel="noreferrer">بدون توکن، اجرای دستی از GitHub ↗</a></section>
       </aside>
     </div>
+
+    <section class="card catalog-card" aria-labelledby="catalogTitle">
+      <div class="card-head">
+        <div><h2 id="catalogTitle">تازه‌ترین پادکست‌ها</h2><div id="catalogStatus" class="caption">در حال دریافت فهرست امن و کم‌حجم...</div></div>
+        <div class="catalog-head-actions"><span class="pill">کاور ۲۵۶ پیکسلی</span><button id="refreshCatalog" class="catalog-refresh" type="button">به‌روزرسانی</button></div>
+      </div>
+      <div class="catalog-tools">
+        <input id="podcastSearch" class="catalog-search" type="search" autocomplete="off" placeholder="جست‌وجوی نام پادکست" aria-label="جست‌وجوی پادکست">
+        <button id="toggleFavorites" class="filter-toggle" type="button" aria-pressed="false">♡ فقط علاقه‌مندی‌ها</button>
+      </div>
+      <div id="podcastGrid" class="podcast-grid" aria-live="polite"></div>
+    </section>
     <footer><span>فایل‌ها در Release پروژه منتشر می‌شوند، نه در تاریخچه Git.</span><a href="https://github.com/Mood2020/newRadioJavan/releases/tag/radiojavan-downloads" target="_blank" rel="noreferrer">Releaseها ↗</a></footer>
   </div>
   <script>
@@ -129,8 +163,74 @@
     const $ = (id) => document.getElementById(id);
     const urlInput = $("urlInput"), tokenInput = $("tokenInput"), rememberToken = $("rememberToken");
     const startButton = $("startButton"), detected = $("detected"), notice = $("notice"), result = $("result");
+    const catalogStatus = $("catalogStatus"), podcastGrid = $("podcastGrid"), podcastSearch = $("podcastSearch");
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     const pageHosts = new Set(["radiojavan.com", "www.radiojavan.com", "play.radiojavan.com", "www.play.radiojavan.com"]);
+    const favoriteKey = "rj_podcast_favorites_v1";
+    let podcastCatalog = [];
+    let favoriteUrls = new Set();
+    let favoritesOnly = false;
+    try { favoriteUrls = new Set(JSON.parse(localStorage.getItem(favoriteKey) || "[]")); } catch {}
+
+    function renderCatalog() {
+      const query = podcastSearch.value.trim().toLocaleLowerCase();
+      const filtered = podcastCatalog.filter(item => item.title.toLocaleLowerCase().includes(query) && (!favoritesOnly || favoriteUrls.has(item.url)));
+      catalogStatus.textContent = `${filtered.length} مورد نمایش داده می‌شود${favoritesOnly ? " · علاقه‌مندی‌ها" : ""}`;
+      podcastGrid.replaceChildren();
+      if (!filtered.length) {
+        const empty = document.createElement("p"); empty.className = "catalog-empty";
+        empty.textContent = podcastCatalog.length ? "موردی پیدا نشد؛ عبارت جست‌وجو یا فیلتر را تغییر بده." : "فهرست هنوز آماده نیست؛ کمی بعد دوباره امتحان کن.";
+        podcastGrid.append(empty); return;
+      }
+
+      for (const item of filtered) {
+        const tile = document.createElement("article"); tile.className = "podcast-tile";
+        const art = document.createElement("div"); art.className = "podcast-art";
+        const image = document.createElement("img"); image.src = item.image_url; image.alt = `کاور ${item.title}`;
+        image.width = 256; image.height = 256; image.loading = "lazy"; image.decoding = "async";
+        image.onerror = () => image.remove(); art.append(image);
+        const info = document.createElement("div"); info.className = "podcast-info";
+        const title = document.createElement("h3"); title.className = "podcast-title"; title.textContent = item.title;
+        const tag = document.createElement("p"); tag.className = "podcast-tag"; tag.textContent = "RADIO JAVAN · PODCAST";
+        const use = document.createElement("button"); use.className = "podcast-use"; use.type = "button"; use.textContent = "استفاده از این لینک";
+        use.addEventListener("click", () => { urlInput.value = item.url; updateDetected(); urlInput.scrollIntoView({ behavior: "smooth", block: "center" }); urlInput.focus({ preventScroll: true }); });
+        const utilities = document.createElement("div"); utilities.className = "podcast-utilities";
+        const favorite = document.createElement("button"); favorite.type = "button"; favorite.className = "favorite-button";
+        const isFavorite = favoriteUrls.has(item.url); favorite.classList.toggle("is-active", isFavorite);
+        favorite.setAttribute("aria-pressed", String(isFavorite)); favorite.setAttribute("aria-label", isFavorite ? "حذف از علاقه‌مندی‌ها" : "افزودن به علاقه‌مندی‌ها");
+        favorite.title = favorite.getAttribute("aria-label"); favorite.textContent = isFavorite ? "♥ ذخیره‌شده" : "♡ ذخیره";
+        favorite.addEventListener("click", () => {
+          if (favoriteUrls.has(item.url)) favoriteUrls.delete(item.url); else favoriteUrls.add(item.url);
+          try { localStorage.setItem(favoriteKey, JSON.stringify([...favoriteUrls])); } catch {}
+          renderCatalog();
+        });
+        const share = document.createElement("button"); share.type = "button"; share.textContent = navigator.share ? "اشتراک" : "کپی لینک";
+        share.setAttribute("aria-label", `اشتراک‌گذاری ${item.title}`);
+        share.addEventListener("click", async () => {
+          try {
+            if (navigator.share) await navigator.share({ title: item.title, url: item.url });
+            else { await navigator.clipboard.writeText(item.url); share.textContent = "کپی شد"; setTimeout(() => { share.textContent = "کپی لینک"; }, 1600); }
+          } catch (error) { if (error.name !== "AbortError") showError("کپی لینک در این مرورگر در دسترس نیست."); }
+        });
+        utilities.append(favorite, share); info.append(title, tag, use, utilities); tile.append(art, info); podcastGrid.append(tile);
+      }
+    }
+
+    async function loadCatalog() {
+      const button = $("refreshCatalog"); button.disabled = true; catalogStatus.textContent = "در حال دریافت فهرست...";
+      try {
+        const response = await fetch("podcast-catalog.json", { cache: "no-cache" });
+        if (!response.ok) throw new Error(`فهرست پادکست‌ها دریافت نشد (${response.status}).`);
+        const data = await response.json();
+        podcastCatalog = Array.isArray(data.episodes) ? data.episodes.filter(item => item.title && item.url?.startsWith("https://play.radiojavan.com/podcast/") && item.image_url?.startsWith("https://play.radiojavan.com/_next/image?")) : [];
+        renderCatalog();
+      } catch (error) { podcastCatalog = []; renderCatalog(); catalogStatus.textContent = error.message || "فهرست پادکست‌ها موقتاً در دسترس نیست."; }
+      finally { button.disabled = false; }
+    }
+
+    podcastSearch.addEventListener("input", renderCatalog);
+    $("toggleFavorites").addEventListener("click", event => { favoritesOnly = !favoritesOnly; event.currentTarget.setAttribute("aria-pressed", String(favoritesOnly)); event.currentTarget.textContent = favoritesOnly ? "♥ نمایش همه" : "♡ فقط علاقه‌مندی‌ها"; renderCatalog(); });
+    $("refreshCatalog").addEventListener("click", loadCatalog);
 
     function classify(value) {
       try {
@@ -238,6 +338,7 @@
     $("clearToken").addEventListener("click", () => { sessionStorage.removeItem("rj_token"); tokenInput.value = ""; rememberToken.checked = false; showError("توکن ذخیره‌شده پاک شد."); });
     document.querySelectorAll(".example").forEach(button => button.addEventListener("click", () => { urlInput.value = button.dataset.url; updateDetected(); urlInput.focus(); }));
     const storedToken = sessionStorage.getItem("rj_token"); if (storedToken) { tokenInput.value = storedToken; rememberToken.checked = true; }
+    loadCatalog();
   </script>
 </body>
 </html>
