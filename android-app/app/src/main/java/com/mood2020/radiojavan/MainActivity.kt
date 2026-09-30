@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.text.Html
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.Crossfade
@@ -42,6 +41,8 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
@@ -51,6 +52,8 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -98,6 +101,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import coil.compose.AsyncImage
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
@@ -179,10 +183,23 @@ class MainActivity : AppCompatActivity() {
         var asset by remember { mutableStateOf<Asset?>(null) }
         var releaseUrl by remember { mutableStateOf("") }
         var podcasts by remember { mutableStateOf<List<PodcastItem>>(emptyList()) }
+        var podcastSearch by rememberSaveable { mutableStateOf("") }
+        var favoriteOnly by rememberSaveable { mutableStateOf(false) }
+        val podcastPrefs = remember { context.getSharedPreferences("podcast_preferences", MODE_PRIVATE) }
+        var favoritePodcastUrls by remember {
+            mutableStateOf(podcastPrefs.getStringSet("favorites", emptySet())?.toSet() ?: emptySet())
+        }
         var podcastLoading by remember { mutableStateOf(true) }
         var podcastError by remember { mutableStateOf(false) }
         var podcastRefresh by rememberSaveable { mutableStateOf(0) }
         val selectedTab = AppTab.values().firstOrNull { it.name == selectedTabName } ?: AppTab.Home
+
+        fun togglePodcastFavorite(item: PodcastItem) {
+            val updated = favoritePodcastUrls.toMutableSet()
+            if (!updated.add(item.url)) updated.remove(item.url)
+            favoritePodcastUrls = updated
+            podcastPrefs.edit().putStringSet("favorites", updated).apply()
+        }
 
         LaunchedEffect(podcastRefresh) {
             podcastLoading = true
@@ -313,9 +330,23 @@ class MainActivity : AppCompatActivity() {
                             )
                             AppTab.Podcasts -> PodcastsScreen(
                                 items = podcasts,
+                                search = podcastSearch,
+                                onSearchChange = { podcastSearch = it },
+                                favoriteOnly = favoriteOnly,
+                                onFavoriteOnlyChange = { favoriteOnly = !favoriteOnly },
+                                favoriteUrls = favoritePodcastUrls,
                                 loading = podcastLoading,
                                 error = podcastError,
                                 onRefresh = { podcastRefresh++ },
+                                onToggleFavorite = ::togglePodcastFavorite,
+                                onShare = { item ->
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, item.title)
+                                        putExtra(Intent.EXTRA_TEXT, "${item.title}\n${item.url}")
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "اشتراک‌گذاری پادکست"))
+                                },
                                 onChoose = { item ->
                                     link = item.url
                                     statusMessage = "لینک پادکست آماده شد."
@@ -613,11 +644,21 @@ private fun InfoCard(title: String, message: String, icon: ImageVector, tint: Co
 @Composable
 private fun PodcastsScreen(
     items: List<PodcastItem>,
+    search: String,
+    onSearchChange: (String) -> Unit,
+    favoriteOnly: Boolean,
+    onFavoriteOnlyChange: () -> Unit,
+    favoriteUrls: Set<String>,
     loading: Boolean,
     error: Boolean,
     onRefresh: () -> Unit,
+    onToggleFavorite: (PodcastItem) -> Unit,
+    onShare: (PodcastItem) -> Unit,
     onChoose: (PodcastItem) -> Unit,
 ) {
+    val visibleItems = items.filter { item ->
+        item.title.contains(search.trim(), ignoreCase = true) && (!favoriteOnly || item.url in favoriteUrls)
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
@@ -641,29 +682,88 @@ private fun PodcastsScreen(
                 StatusPill("●  ${items.size} اپیزود آماده انتخاب", Mint)
             }
         }
-        items(items, key = { it.url }) { item -> PodcastCard(item, items.indexOf(item) + 1, onChoose) }
+        item {
+            OutlinedTextField(
+                value = search,
+                onValueChange = onSearchChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("جست‌وجوی نام پادکست") },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                shape = RoundedCornerShape(16.dp),
+            )
+        }
+        item {
+            OutlinedButton(
+                onClick = onFavoriteOnlyChange,
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, if (favoriteOnly) Orange else Outline),
+            ) {
+                Icon(Icons.Outlined.Favorite, contentDescription = null, tint = if (favoriteOnly) Orange else Muted)
+                Spacer(Modifier.width(8.dp))
+                Text(if (favoriteOnly) "نمایش همه پادکست‌ها" else "فقط علاقه‌مندی‌ها")
+            }
+        }
+        if (!loading && !error && visibleItems.isEmpty()) {
+            item {
+                StatusCard(
+                    if (favoriteOnly && search.isBlank()) "هنوز پادکستی ذخیره نکرده‌ای." else "پادکستی با این نام پیدا نشد.",
+                    false,
+                )
+            }
+        }
+        items(visibleItems, key = { it.url }) { item ->
+            PodcastCard(
+                item = item,
+                index = visibleItems.indexOf(item) + 1,
+                favorite = item.url in favoriteUrls,
+                onToggleFavorite = { onToggleFavorite(item) },
+                onShare = { onShare(item) },
+                onChoose = onChoose,
+            )
+        }
     }
 }
 
 @Composable
-private fun PodcastCard(item: PodcastItem, index: Int, onChoose: (PodcastItem) -> Unit) {
+private fun PodcastCard(
+    item: PodcastItem,
+    index: Int,
+    favorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onShare: () -> Unit,
+    onChoose: (PodcastItem) -> Unit,
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
         shape = RoundedCornerShape(23.dp),
         border = BorderStroke(1.dp, Outline),
     ) {
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Box(
-                    Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(SurfaceSoft),
-                    contentAlignment = Alignment.Center,
-                ) { Text(index.toString().padStart(2, '0'), color = Orange, fontWeight = FontWeight.Bold) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = "کاور ${item.title}",
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(R.drawable.ic_logo_compose),
+                    error = painterResource(R.drawable.ic_logo_compose),
+                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(17.dp)),
+                )
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(item.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 21.sp)
-                    Text("PODCAST  ·  RADIO JAVAN", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
+                    Text("${index.toString().padStart(2, '0')}  ·  RADIO JAVAN", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
                 }
-                Icon(Icons.Outlined.GraphicEq, contentDescription = null, tint = Purple)
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        if (favorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (favorite) "حذف از علاقه‌مندی‌ها" else "افزودن به علاقه‌مندی‌ها",
+                        tint = if (favorite) Orange else Muted,
+                    )
+                }
+                IconButton(onClick = onShare) {
+                    Icon(Icons.Outlined.Share, contentDescription = "اشتراک‌گذاری", tint = Purple)
+                }
             }
             OutlinedButton(
                 onClick = { onChoose(item) },
@@ -897,42 +997,38 @@ private data class RunInfo(val id: Long, val status: String, val conclusion: Str
 private data class Asset(val name: String, val url: String, val size: Long, val updatedAt: Long)
 private data class Release(val htmlUrl: String, val assets: List<Asset>)
 private data class ReleaseAssetResult(val asset: Asset, val releaseUrl: String)
-private data class PodcastItem(val title: String, val url: String)
+private data class PodcastItem(val title: String, val url: String, val imageUrl: String)
 
 private object RadioJavanCatalog {
-    private const val CATALOG_URL = "https://play.radiojavan.com/special/podcasts"
-    private val podcastLink = Regex(
-        """<a[^>]+href=[\"'](/podcast/[^\"'/?#]+)[\"'][^>]*>(.*?)</a>""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
-    )
+    private const val CATALOG_URL = "https://mood2020.github.io/newRadioJavan/podcast-catalog.json"
 
     fun fetchLatest(): List<PodcastItem> {
         val connection = (URL(CATALOG_URL).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 20_000
             readTimeout = 30_000
-            setRequestProperty("Accept", "text/html,application/xhtml+xml")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "RadioJavanDownloader-Android")
         }
         return try {
-            if (connection.responseCode !in 200..299) throw IOException("Radio Javan returned HTTP ${connection.responseCode}")
-            parse(connection.inputStream.bufferedReader().use { it.readText() })
+            if (connection.responseCode !in 200..299) throw IOException("Podcast catalog returned HTTP ${connection.responseCode}")
+            val episodes = JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                .getJSONArray("episodes")
+            (0 until episodes.length()).mapNotNull { index ->
+                val episode = episodes.getJSONObject(index)
+                val title = episode.optString("title").trim()
+                val url = episode.optString("url")
+                val imageUrl = episode.optString("image_url")
+                if (title.isBlank() || !url.startsWith("https://play.radiojavan.com/podcast/") ||
+                    !imageUrl.startsWith("https://play.radiojavan.com/_next/image?")) {
+                    null
+                } else {
+                    PodcastItem(title, url, imageUrl)
+                }
+            }.take(12)
         } finally {
             connection.disconnect()
         }
-    }
-
-    fun parse(html: String): List<PodcastItem> {
-        val unique = linkedMapOf<String, PodcastItem>()
-        podcastLink.findAll(html).forEach { match ->
-            val path = match.groupValues[1]
-            val title = Html.fromHtml(match.groupValues[2], Html.FROM_HTML_MODE_LEGACY)
-                .toString()
-                .replace(Regex("\\s+"), " ")
-                .trim()
-            if (title.isNotBlank()) unique.putIfAbsent(path, PodcastItem(title, "https://play.radiojavan.com$path"))
-        }
-        return unique.values.take(12)
     }
 }
 
