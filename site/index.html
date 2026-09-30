@@ -26,7 +26,10 @@
     .catalog-refresh,.filter-toggle { border:1px solid #3c4969; border-radius:11px; padding:8px 11px; color:#dce3f5; background:#111727; font-size:12px; white-space:nowrap; }
     .catalog-refresh:hover,.filter-toggle:hover { border-color:#66769e; }
     .filter-toggle[aria-pressed="true"] { border-color:#ff956b; color:#ffc3a6; background:#2b2021; }
-    .catalog-tools { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; }
+    .catalog-tools { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; }
+    .catalog-switch { display:flex; gap:4px; padding:4px; border:1px solid #34415f; border-radius:13px; background:#0e1320; }
+    .catalog-tab { min-height:36px; border-radius:9px; padding:6px 12px; color:#aab4ca; background:transparent; font-size:12px; white-space:nowrap; }
+    .catalog-tab[aria-selected="true"] { color:#17131c; background:linear-gradient(100deg,#ff8a5b,#ffc05d); font-weight:bold; }
     .catalog-search { width:100%; min-height:44px; border:1px solid #3a486a; border-radius:13px; padding:10px 13px; color:var(--text); background:#0e1320; direction:rtl; text-align:right; }
     .catalog-search:focus { border-color:var(--accent); outline:3px solid #ff7a5918; }
     .catalog-status { color:var(--muted); font-size:12px; margin-top:10px; }
@@ -117,7 +120,7 @@
     <div class="layout">
       <section class="card main-card">
         <div class="card-head"><div><h2>شروع دانلود</h2><div class="caption">فقط لینک را وارد کن؛ بقیه مراحل خودکار است.</div></div><span class="pill">سه نوع لینک</span></div>
-        <div class="input-wrap"><input id="urlInput" type="url" autocomplete="off" placeholder="https://play.radiojavan.com/podcast/..." aria-label="Radio Javan URL"><button id="startButton" class="primary" type="button">شروع پردازش</button></div>
+        <div class="input-wrap"><input id="urlInput" type="url" autocomplete="off" placeholder="https://play.radiojavan.com/song/... or /podcast/..." aria-label="Radio Javan URL"><button id="startButton" class="primary" type="button">شروع پردازش</button></div>
         <div id="detected" class="detected">نوع لینک بعد از ورود اینجا نمایش داده می‌شود.</div>
         <div id="notice" class="notice" role="alert"></div>
         <div id="result" class="result">
@@ -129,6 +132,7 @@
         <div class="examples">
           <div class="examples-title">برای تست سریع، روی یکی از نمونه‌ها بزن:</div>
           <button class="example" type="button" data-url="https://play.radiojavan.com/podcast/gheramophone-24">لینک مستقیم · gheramophone-24</button>
+          <button class="example" type="button" data-url="https://play.radiojavan.com/song/googoosh-gharibeh-ashena">آهنگ · Gharibeh Ashena</button>
           <button class="example" type="button" data-url="https://rj.app/p/6r9jMXyB?sid=62efeaa84f57a8d6">لینک کوتاه · rj.app</button>
           <button class="example" type="button" data-url="https://play.radiojavan.com/redirect?r=radiojavan://podcast/5346">لینک اشتراک · redirect</button>
         </div>
@@ -146,11 +150,15 @@
 
     <section class="card catalog-card" aria-labelledby="catalogTitle">
       <div class="card-head">
-        <div><h2 id="catalogTitle">تازه‌ترین پادکست‌ها</h2><div id="catalogStatus" class="caption">در حال دریافت فهرست امن و کم‌حجم...</div></div>
-        <div class="catalog-head-actions"><span class="pill">کاور ۲۵۶ پیکسلی</span><button id="refreshCatalog" class="catalog-refresh" type="button">به‌روزرسانی</button></div>
+        <div><h2 id="catalogTitle">آهنگ‌ها و پادکست‌ها</h2><div id="catalogStatus" class="caption">پادکست‌های تازه یا جست‌وجوی زنده در آرشیو قدیمی</div></div>
+        <div class="catalog-head-actions"><span class="pill">جست‌وجوی زنده</span><button id="refreshCatalog" class="catalog-refresh" type="button">به‌روزرسانی</button></div>
       </div>
       <div class="catalog-tools">
-        <input id="podcastSearch" class="catalog-search" type="search" autocomplete="off" placeholder="جست‌وجوی نام پادکست" aria-label="جست‌وجوی پادکست">
+        <div class="catalog-switch" role="tablist" aria-label="نوع کتابخانه">
+          <button id="songsTab" class="catalog-tab" type="button" role="tab" aria-selected="false">آهنگ‌ها</button>
+          <button id="podcastsTab" class="catalog-tab" type="button" role="tab" aria-selected="true">پادکست‌ها</button>
+        </div>
+        <input id="podcastSearch" class="catalog-search" type="search" autocomplete="off" placeholder="جست‌وجوی نام پادکست یا اپیزود" aria-label="جست‌وجوی پادکست">
         <button id="toggleFavorites" class="filter-toggle" type="button" aria-pressed="false">♡ فقط علاقه‌مندی‌ها</button>
       </div>
       <div id="podcastGrid" class="podcast-grid" aria-live="polite"></div>
@@ -168,18 +176,33 @@
     const pageHosts = new Set(["radiojavan.com", "www.radiojavan.com", "play.radiojavan.com", "www.play.radiojavan.com"]);
     const favoriteKey = "rj_podcast_favorites_v1";
     let podcastCatalog = [];
+    let liveResults = [];
+    let activeKind = "podcast";
+    let liveLoading = false;
+    let liveError = false;
+    let liveSearchSequence = 0;
+    let liveSearchTimer;
+    let liveSearchController;
     let favoriteUrls = new Set();
     let favoritesOnly = false;
     try { favoriteUrls = new Set(JSON.parse(localStorage.getItem(favoriteKey) || "[]")); } catch {}
 
     function renderCatalog() {
-      const query = podcastSearch.value.trim().toLocaleLowerCase();
-      const filtered = podcastCatalog.filter(item => item.title.toLocaleLowerCase().includes(query) && (!favoritesOnly || favoriteUrls.has(item.url)));
-      catalogStatus.textContent = `${filtered.length} مورد نمایش داده می‌شود${favoritesOnly ? " · علاقه‌مندی‌ها" : ""}`;
+      const rawQuery = podcastSearch.value.trim();
+      const query = rawQuery.toLocaleLowerCase();
+      const source = query ? liveResults : activeKind === "podcast" ? podcastCatalog : [];
+      const filtered = source.filter(item => `${item.title} ${item.artist || ""}`.toLocaleLowerCase().includes(query) && (!favoritesOnly || favoriteUrls.has(item.url)));
+      catalogStatus.textContent = liveLoading ? "در حال جست‌وجوی Radio Javan..." : liveError ? "جست‌وجوی آنلاین موقتاً در دسترس نیست." : `${filtered.length} مورد نمایش داده می‌شود${favoritesOnly ? " · علاقه‌مندی‌ها" : ""}`;
       podcastGrid.replaceChildren();
       if (!filtered.length) {
         const empty = document.createElement("p"); empty.className = "catalog-empty";
-        empty.textContent = podcastCatalog.length ? "موردی پیدا نشد؛ عبارت جست‌وجو یا فیلتر را تغییر بده." : "فهرست هنوز آماده نیست؛ کمی بعد دوباره امتحان کن.";
+        if (liveError) empty.textContent = "اتصال جست‌وجوی Radio Javan برقرار نشد؛ کمی بعد دوباره امتحان کن.";
+        else if (liveLoading) empty.textContent = "در حال دریافت نتیجه‌ها...";
+        else if (rawQuery.length === 1) empty.textContent = "برای جست‌وجو دست‌کم دو نویسه وارد کن.";
+        else if (favoritesOnly && !rawQuery) empty.textContent = "هنوز موردی ذخیره نکرده‌ای.";
+        else if (rawQuery) empty.textContent = "نتیجه‌ای پیدا نشد؛ عبارت جست‌وجو را تغییر بده.";
+        else if (activeKind === "song") empty.textContent = "نام آهنگ یا خواننده را جست‌وجو کن؛ آرشیو قدیمی و جدید در دسترس است.";
+        else empty.textContent = podcastCatalog.length ? "پادکستی برای نمایش نیست." : "فهرست پادکست‌ها هنوز آماده نیست؛ جست‌وجو کن یا کمی بعد دوباره امتحان کن.";
         podcastGrid.append(empty); return;
       }
 
@@ -191,8 +214,8 @@
         image.onerror = () => image.remove(); art.append(image);
         const info = document.createElement("div"); info.className = "podcast-info";
         const title = document.createElement("h3"); title.className = "podcast-title"; title.textContent = item.title;
-        const tag = document.createElement("p"); tag.className = "podcast-tag"; tag.textContent = "RADIO JAVAN · PODCAST";
-        const use = document.createElement("button"); use.className = "podcast-use"; use.type = "button"; use.textContent = "استفاده از این لینک";
+        const tag = document.createElement("p"); tag.className = "podcast-tag"; tag.textContent = `RADIO JAVAN · ${(item.kind || "podcast").toUpperCase()}${item.artist ? ` · ${item.artist}` : ""}`;
+        const use = document.createElement("button"); use.className = "podcast-use"; use.type = "button"; use.textContent = item.kind === "song" ? "آماده‌سازی آهنگ" : "آماده‌سازی پادکست";
         use.addEventListener("click", () => { urlInput.value = item.url; updateDetected(); urlInput.scrollIntoView({ behavior: "smooth", block: "center" }); urlInput.focus({ preventScroll: true }); });
         const utilities = document.createElement("div"); utilities.className = "podcast-utilities";
         const favorite = document.createElement("button"); favorite.type = "button"; favorite.className = "favorite-button";
@@ -216,21 +239,78 @@
       }
     }
 
+    function parseLiveResults(markdown, kind) {
+      const items = [];
+      const rowPattern = /^\[!\[Image \d+: (.*?)\]\((https:\/\/play\.radiojavan\.com\/_next\/image\?.*?)\)\]\((https:\/\/play\.radiojavan\.com\/(?:song|podcast)\/.*)\)$/;
+      for (const line of markdown.split(/\r?\n/)) {
+        const match = line.match(rowPattern);
+        if (!match) continue;
+        const path = new URL(match[3]).pathname;
+        if (kind === "song" ? !path.startsWith("/song/") : !path.startsWith("/podcast/") || path.startsWith("/podcast/show/")) continue;
+        const metadata = match[1].trim();
+        const imageUrl = match[2].replace(/([?&]w=)\d+/, (_, prefix) => `${prefix}256`).replaceAll("&amp;", "&");
+        items.push({ title: metadata.split(" · ", 1)[0].trim(), artist: metadata.includes(" · ") ? metadata.slice(metadata.indexOf(" · ") + 3).trim() : "", image_url: imageUrl, url: match[3], kind });
+      }
+      return [...new Map(items.map(item => [item.url, item])).values()].slice(0, 50);
+    }
+
+    async function runLiveSearch(query, sequence) {
+      liveSearchController = new AbortController();
+      try {
+        const category = activeKind === "song" ? "songs" : "podcasts";
+        const target = `https://r.jina.ai/https://play.radiojavan.com/search/${encodeURIComponent(query)}/${category}`;
+        const response = await fetch(target, { headers: { Accept: "text/plain" }, signal: liveSearchController.signal });
+        if (!response.ok) throw new Error(`Radio Javan search returned ${response.status}`);
+        const markdown = await response.text();
+        if (sequence !== liveSearchSequence) return;
+        liveResults = parseLiveResults(markdown, activeKind);
+        liveError = false;
+      } catch (error) {
+        if (error.name !== "AbortError" && sequence === liveSearchSequence) liveError = true;
+      } finally {
+        if (sequence === liveSearchSequence) { liveLoading = false; renderCatalog(); }
+      }
+    }
+
+    function queueLiveSearch() {
+      clearTimeout(liveSearchTimer);
+      liveSearchController?.abort();
+      const query = podcastSearch.value.trim();
+      const sequence = ++liveSearchSequence;
+      liveResults = [];
+      liveError = false;
+      if (!query || query.length < 2) { liveLoading = false; renderCatalog(); return; }
+      liveLoading = true;
+      renderCatalog();
+      liveSearchTimer = setTimeout(() => runLiveSearch(query, sequence), 350);
+    }
+
+    function selectLibrary(kind) {
+      activeKind = kind;
+      $("songsTab").setAttribute("aria-selected", String(kind === "song"));
+      $("podcastsTab").setAttribute("aria-selected", String(kind === "podcast"));
+      podcastSearch.placeholder = kind === "song" ? "جست‌وجوی نام آهنگ یا خواننده" : "جست‌وجوی نام پادکست یا اپیزود";
+      podcastSearch.setAttribute("aria-label", kind === "song" ? "جست‌وجوی آهنگ" : "جست‌وجوی پادکست");
+      queueLiveSearch();
+    }
+
     async function loadCatalog() {
       const button = $("refreshCatalog"); button.disabled = true; catalogStatus.textContent = "در حال دریافت فهرست...";
       try {
         const response = await fetch("podcast-catalog.json", { cache: "no-cache" });
         if (!response.ok) throw new Error(`فهرست پادکست‌ها دریافت نشد (${response.status}).`);
         const data = await response.json();
-        podcastCatalog = Array.isArray(data.episodes) ? data.episodes.filter(item => item.title && item.url?.startsWith("https://play.radiojavan.com/podcast/") && item.image_url?.startsWith("https://play.radiojavan.com/_next/image?")) : [];
+        podcastCatalog = Array.isArray(data.episodes) ? data.episodes.filter(item => item.title && item.url?.startsWith("https://play.radiojavan.com/podcast/") && item.image_url?.startsWith("https://play.radiojavan.com/_next/image?")).map(item => ({ ...item, kind: "podcast", artist: "" })) : [];
         renderCatalog();
       } catch (error) { podcastCatalog = []; renderCatalog(); catalogStatus.textContent = error.message || "فهرست پادکست‌ها موقتاً در دسترس نیست."; }
       finally { button.disabled = false; }
     }
 
-    podcastSearch.addEventListener("input", renderCatalog);
+    podcastSearch.addEventListener("input", queueLiveSearch);
+    $("songsTab").addEventListener("click", () => selectLibrary("song"));
+    $("podcastsTab").addEventListener("click", () => selectLibrary("podcast"));
     $("toggleFavorites").addEventListener("click", event => { favoritesOnly = !favoritesOnly; event.currentTarget.setAttribute("aria-pressed", String(favoritesOnly)); event.currentTarget.textContent = favoritesOnly ? "♥ نمایش همه" : "♡ فقط علاقه‌مندی‌ها"; renderCatalog(); });
-    $("refreshCatalog").addEventListener("click", loadCatalog);
+    $("refreshCatalog").addEventListener("click", () => podcastSearch.value.trim() ? queueLiveSearch() : loadCatalog());
 
     function classify(value) {
       try {
