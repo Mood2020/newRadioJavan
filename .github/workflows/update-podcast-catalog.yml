@@ -9,7 +9,9 @@ on:
     paths:
       - ".github/workflows/update-podcast-catalog.yml"
       - "scripts/update_podcast_catalog.py"
+      - "scripts/download_podcast.py"
       - "tests/test_update_podcast_catalog.py"
+      - "tests/test_download_podcast.py"
 
 permissions:
   contents: write

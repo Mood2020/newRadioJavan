@@ -105,12 +105,14 @@ import coil.compose.AsyncImage
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.URLEncoder
 import java.net.URL
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -128,7 +130,8 @@ private val Outline = Color(0xFF34415F)
 
 private enum class AppTab(val label: String, val title: String, val icon: ImageVector) {
     Home("خانه", "رادیو جوان", Icons.Outlined.Home),
-    Podcasts("پادکست", "جدیدترین پادکست‌ها", Icons.Outlined.LibraryMusic),
+    Songs("آهنگ‌ها", "جست‌وجوی آهنگ‌ها", Icons.Outlined.Search),
+    Podcasts("پادکست", "پادکست‌ها", Icons.Outlined.LibraryMusic),
     Downloads("دانلود", "ساخت فایل جدید", Icons.Outlined.Download),
     Settings("تنظیمات", "امنیت و اتصال", Icons.Outlined.Settings),
 }
@@ -184,6 +187,15 @@ class MainActivity : AppCompatActivity() {
         var releaseUrl by remember { mutableStateOf("") }
         var podcasts by remember { mutableStateOf<List<PodcastItem>>(emptyList()) }
         var podcastSearch by rememberSaveable { mutableStateOf("") }
+        var podcastSearchResults by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+        var podcastSearchLoading by remember { mutableStateOf(false) }
+        var podcastSearchError by remember { mutableStateOf(false) }
+        var podcastSearchRefresh by rememberSaveable { mutableStateOf(0) }
+        var songSearch by rememberSaveable { mutableStateOf("") }
+        var songResults by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+        var songLoading by remember { mutableStateOf(false) }
+        var songError by remember { mutableStateOf(false) }
+        var songRefresh by rememberSaveable { mutableStateOf(0) }
         var favoriteOnly by rememberSaveable { mutableStateOf(false) }
         val podcastPrefs = remember { context.getSharedPreferences("podcast_preferences", MODE_PRIVATE) }
         var favoritePodcastUrls by remember {
@@ -194,7 +206,7 @@ class MainActivity : AppCompatActivity() {
         var podcastRefresh by rememberSaveable { mutableStateOf(0) }
         val selectedTab = AppTab.values().firstOrNull { it.name == selectedTabName } ?: AppTab.Home
 
-        fun togglePodcastFavorite(item: PodcastItem) {
+        fun toggleFavorite(item: MediaItem) {
             val updated = favoritePodcastUrls.toMutableSet()
             if (!updated.add(item.url)) updated.remove(item.url)
             favoritePodcastUrls = updated
@@ -208,6 +220,54 @@ class MainActivity : AppCompatActivity() {
                 .onSuccess { podcasts = it }
                 .onFailure { podcastError = true }
             podcastLoading = false
+        }
+
+        LaunchedEffect(podcastSearch, podcastSearchRefresh) {
+            val query = podcastSearch.trim()
+            if (query.isBlank()) {
+                podcastSearchResults = emptyList()
+                podcastSearchLoading = false
+                podcastSearchError = false
+                return@LaunchedEffect
+            }
+            podcastSearchResults = emptyList()
+            podcastSearchError = false
+            if (query.length < 2) {
+                podcastSearchLoading = false
+                return@LaunchedEffect
+            }
+            podcastSearchLoading = true
+            try {
+                delay(450)
+                podcastSearchResults = withContext(Dispatchers.IO) { RadioJavanSearch.search(query, "podcast") }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                podcastSearchError = true
+            }
+            podcastSearchLoading = false
+        }
+
+        LaunchedEffect(songSearch, songRefresh) {
+            val query = songSearch.trim()
+            if (query.isBlank() || query.length < 2) {
+                songResults = emptyList()
+                songLoading = false
+                songError = false
+                return@LaunchedEffect
+            }
+            songResults = emptyList()
+            songError = false
+            songLoading = true
+            try {
+                delay(450)
+                songResults = withContext(Dispatchers.IO) { RadioJavanSearch.search(query, "song") }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                songError = true
+            }
+            songLoading = false
         }
 
         fun saveToken() {
@@ -326,19 +386,50 @@ class MainActivity : AppCompatActivity() {
                             when (tab) {
                             AppTab.Home -> HomeScreen(
                                 onDownload = { selectedTabName = AppTab.Downloads.name },
+                                onSongs = { selectedTabName = AppTab.Songs.name },
                                 onPodcasts = { selectedTabName = AppTab.Podcasts.name },
                             )
-                            AppTab.Podcasts -> PodcastsScreen(
-                                items = podcasts,
+                            AppTab.Songs -> MediaSearchScreen(
+                                mediaType = "song",
+                                items = songResults,
+                                search = songSearch,
+                                onSearchChange = { songSearch = it },
+                                favoriteOnly = favoriteOnly,
+                                onFavoriteOnlyChange = { favoriteOnly = !favoriteOnly },
+                                favoriteUrls = favoritePodcastUrls,
+                                loading = songLoading,
+                                error = songError,
+                                emptyHint = "نام آهنگ یا خواننده را جست‌وجو کن؛ نتایج قدیمی و جدید Radio Javan نمایش داده می‌شوند.",
+                                onRefresh = { songRefresh++ },
+                                onToggleFavorite = ::toggleFavorite,
+                                onShare = { item ->
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, item.title)
+                                        putExtra(Intent.EXTRA_TEXT, "${item.title}\n${item.url}")
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "اشتراک‌گذاری آهنگ"))
+                                },
+                                onChoose = { item ->
+                                    link = item.url
+                                    statusMessage = "لینک آهنگ آماده شد."
+                                    statusIsError = false
+                                    selectedTabName = AppTab.Downloads.name
+                                },
+                            )
+                            AppTab.Podcasts -> MediaSearchScreen(
+                                mediaType = "podcast",
+                                items = if (podcastSearch.isBlank()) podcasts else podcastSearchResults,
                                 search = podcastSearch,
                                 onSearchChange = { podcastSearch = it },
                                 favoriteOnly = favoriteOnly,
                                 onFavoriteOnlyChange = { favoriteOnly = !favoriteOnly },
                                 favoriteUrls = favoritePodcastUrls,
-                                loading = podcastLoading,
-                                error = podcastError,
-                                onRefresh = { podcastRefresh++ },
-                                onToggleFavorite = ::togglePodcastFavorite,
+                                loading = if (podcastSearch.isBlank()) podcastLoading else podcastSearchLoading,
+                                error = if (podcastSearch.isBlank()) podcastError else podcastSearchError,
+                                emptyHint = "جست‌وجوی یک پادکست، نام برنامه یا اپیزودهای قدیمی را شروع کن.",
+                                onRefresh = { if (podcastSearch.isBlank()) podcastRefresh++ else podcastSearchRefresh++ },
+                                onToggleFavorite = ::toggleFavorite,
                                 onShare = { item ->
                                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "text/plain"
@@ -497,19 +588,19 @@ class MainActivity : AppCompatActivity() {
 }
 
 @Composable
-private fun HomeScreen(onDownload: () -> Unit, onPodcasts: () -> Unit) {
+private fun HomeScreen(onDownload: () -> Unit, onSongs: () -> Unit, onPodcasts: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            HeroCard(onDownload = onDownload, onPodcasts = onPodcasts)
+            HeroCard(onDownload = onDownload, onSongs = onSongs, onPodcasts = onPodcasts)
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 MetricCard(Modifier.weight(1f), "۳ فرمت", "پشتیبانی لینک", Icons.Outlined.Link)
-                MetricCard(Modifier.weight(1f), "۱۲ آیتم", "پادکست تازه", Icons.Outlined.GraphicEq)
+                MetricCard(Modifier.weight(1f), "زنده", "جست‌وجوی آرشیو", Icons.Outlined.GraphicEq)
                 MetricCard(Modifier.weight(1f), "امن", "ذخیره توکن", Icons.Outlined.Security)
             }
         }
@@ -530,7 +621,7 @@ private fun HomeScreen(onDownload: () -> Unit, onPodcasts: () -> Unit) {
 }
 
 @Composable
-private fun HeroCard(onDownload: () -> Unit, onPodcasts: () -> Unit) {
+private fun HeroCard(onDownload: () -> Unit, onSongs: () -> Unit, onPodcasts: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -558,20 +649,27 @@ private fun HeroCard(onDownload: () -> Unit, onPodcasts: () -> Unit) {
                 fontSize = 14.sp,
                 lineHeight = 22.sp,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Button(
                     onClick = onDownload,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Ink),
-                ) { Text("شروع دانلود", fontWeight = FontWeight.Bold) }
+                ) { Text("دانلود", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                OutlinedButton(
+                    onClick = onSongs,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFF9C8CE1)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) { Text("آهنگ", fontSize = 12.sp) }
                 OutlinedButton(
                     onClick = onPodcasts,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, Color(0xFF9C8CE1)),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                ) { Text("پادکست‌ها") }
+                ) { Text("پادکست", fontSize = 12.sp) }
             }
         }
     }
@@ -642,8 +740,9 @@ private fun InfoCard(title: String, message: String, icon: ImageVector, tint: Co
 }
 
 @Composable
-private fun PodcastsScreen(
-    items: List<PodcastItem>,
+private fun MediaSearchScreen(
+    mediaType: String,
+    items: List<MediaItem>,
     search: String,
     onSearchChange: (String) -> Unit,
     favoriteOnly: Boolean,
@@ -651,13 +750,14 @@ private fun PodcastsScreen(
     favoriteUrls: Set<String>,
     loading: Boolean,
     error: Boolean,
+    emptyHint: String,
     onRefresh: () -> Unit,
-    onToggleFavorite: (PodcastItem) -> Unit,
-    onShare: (PodcastItem) -> Unit,
-    onChoose: (PodcastItem) -> Unit,
+    onToggleFavorite: (MediaItem) -> Unit,
+    onShare: (MediaItem) -> Unit,
+    onChoose: (MediaItem) -> Unit,
 ) {
     val visibleItems = items.filter { item ->
-        item.title.contains(search.trim(), ignoreCase = true) && (!favoriteOnly || item.url in favoriteUrls)
+        (item.title.contains(search.trim(), ignoreCase = true) || item.artist.contains(search.trim(), ignoreCase = true)) && (!favoriteOnly || item.url in favoriteUrls)
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -667,19 +767,25 @@ private fun PodcastsScreen(
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("پادکست‌های تازه", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("آخرین اپیزودهای Radio Javan در یک نگاه", color = Muted, fontSize = 13.sp)
+                    Text(if (mediaType == "song") "جست‌وجوی آهنگ" else "پادکست‌های تازه و قدیمی", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (mediaType == "song") "آهنگ‌های قدیمی و جدید Radio Javan" else "آخرین اپیزودها یا جست‌وجو در آرشیو",
+                        color = Muted,
+                        fontSize = 13.sp,
+                    )
                 }
                 IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "به‌روزرسانی", tint = Orange) }
             }
         }
         item {
             if (loading) {
-                StatusCard("در حال دریافت فهرست جدید...", false, loading = true)
+                StatusCard(if (search.isBlank()) "در حال دریافت فهرست جدید..." else "در حال جست‌وجو در Radio Javan...", false, loading = true)
             } else if (error) {
-                StatusCard("فهرست موقتاً در دسترس نیست؛ لینک دستی همچنان فعال است.", true)
+                StatusCard("جست‌وجوی Radio Javan موقتاً در دسترس نیست؛ کمی بعد دوباره امتحان کن.", true)
+            } else if (search.isBlank() && mediaType == "song") {
+                StatusCard(emptyHint, false)
             } else {
-                StatusPill("●  ${items.size} اپیزود آماده انتخاب", Mint)
+                StatusPill("●  ${items.size} ${if (mediaType == "song") "آهنگ" else "اپیزود"} آماده انتخاب", Mint)
             }
         }
         item {
@@ -688,7 +794,7 @@ private fun PodcastsScreen(
                 onValueChange = onSearchChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("جست‌وجوی نام پادکست") },
+                placeholder = { Text(if (mediaType == "song") "نام آهنگ یا خواننده" else "جست‌وجوی نام پادکست یا اپیزود") },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 shape = RoundedCornerShape(16.dp),
             )
@@ -701,13 +807,13 @@ private fun PodcastsScreen(
             ) {
                 Icon(Icons.Outlined.Favorite, contentDescription = null, tint = if (favoriteOnly) Orange else Muted)
                 Spacer(Modifier.width(8.dp))
-                Text(if (favoriteOnly) "نمایش همه پادکست‌ها" else "فقط علاقه‌مندی‌ها")
+                Text(if (favoriteOnly) "نمایش همه نتایج" else "فقط علاقه‌مندی‌ها")
             }
         }
-        if (!loading && !error && visibleItems.isEmpty()) {
+        if (!loading && !error && visibleItems.isEmpty() && (search.isNotBlank() || favoriteOnly)) {
             item {
                 StatusCard(
-                    if (favoriteOnly && search.isBlank()) "هنوز پادکستی ذخیره نکرده‌ای." else "پادکستی با این نام پیدا نشد.",
+                    if (favoriteOnly && search.isBlank()) "هنوز موردی ذخیره نکرده‌ای." else if (search.trim().length == 1) "برای جست‌وجو دست‌کم دو نویسه وارد کن." else "نتیجه‌ای پیدا نشد؛ عبارت جست‌وجو را تغییر بده.",
                     false,
                 )
             }
@@ -727,12 +833,12 @@ private fun PodcastsScreen(
 
 @Composable
 private fun PodcastCard(
-    item: PodcastItem,
+    item: MediaItem,
     index: Int,
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
     onShare: () -> Unit,
-    onChoose: (PodcastItem) -> Unit,
+    onChoose: (MediaItem) -> Unit,
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -752,7 +858,13 @@ private fun PodcastCard(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(item.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 21.sp)
-                    Text("${index.toString().padStart(2, '0')}  ·  RADIO JAVAN", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
+                    Text(
+                        listOf(index.toString().padStart(2, '0'), item.artist.ifBlank { "RADIO JAVAN" }).joinToString("  ·  "),
+                        color = Muted,
+                        fontSize = 9.sp,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1,
+                    )
                 }
                 IconButton(onClick = onToggleFavorite) {
                     Icon(
@@ -771,7 +883,7 @@ private fun PodcastCard(
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.dp, Color(0xFF62559B)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD7CCFF)),
-            ) { Text("آماده‌سازی این پادکست") }
+            ) { Text(if (item.type == "song") "آماده‌سازی این آهنگ" else "آماده‌سازی این پادکست") }
         }
     }
 }
@@ -997,7 +1109,8 @@ private data class RunInfo(val id: Long, val status: String, val conclusion: Str
 private data class Asset(val name: String, val url: String, val size: Long, val updatedAt: Long)
 private data class Release(val htmlUrl: String, val assets: List<Asset>)
 private data class ReleaseAssetResult(val asset: Asset, val releaseUrl: String)
-private data class PodcastItem(val title: String, val url: String, val imageUrl: String)
+private data class MediaItem(val title: String, val url: String, val imageUrl: String, val type: String, val artist: String = "")
+private typealias PodcastItem = MediaItem
 
 private object RadioJavanCatalog {
     private const val CATALOG_URL = "https://mood2020.github.io/newRadioJavan/podcast-catalog.json"
@@ -1023,9 +1136,49 @@ private object RadioJavanCatalog {
                     !imageUrl.startsWith("https://play.radiojavan.com/_next/image?")) {
                     null
                 } else {
-                    PodcastItem(title, url, imageUrl)
+                    MediaItem(title, url, imageUrl, "podcast")
                 }
             }.take(12)
+        } finally {
+            connection.disconnect()
+        }
+    }
+}
+
+private object RadioJavanSearch {
+    private val rowPattern = Regex(
+        """^\[!\[Image \d+: (.*?)\]\((https://play\.radiojavan\.com/_next/image\?[^)]*)\)\]\((https://play\.radiojavan\.com/(?:song|podcast)/.*)\)$""",
+    )
+
+    fun search(query: String, type: String): List<MediaItem> {
+        require(type == "song" || type == "podcast")
+        val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name()).replace("+", "%20")
+        val route = if (type == "song") "songs" else "podcasts"
+        val connection = (URL("https://r.jina.ai/https://play.radiojavan.com/search/$encodedQuery/$route").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 15_000
+            readTimeout = 25_000
+            setRequestProperty("Accept", "text/plain")
+            setRequestProperty("User-Agent", "RadioJavanDownloader-Android")
+        }
+        return try {
+            val code = connection.responseCode
+            if (code !in 200..299) throw IOException("Radio Javan search returned HTTP $code")
+            val markdown = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            if (markdown.length > 1_000_000) throw IOException("Radio Javan search response was too large")
+            markdown.lineSequence().mapNotNull { line ->
+                val match = rowPattern.matchEntire(line) ?: return@mapNotNull null
+                val metadata = match.groupValues[1].trim()
+                val title = metadata.substringBefore(" · ").trim()
+                val itemUrl = match.groupValues[3]
+                val path = Uri.parse(itemUrl).path.orEmpty()
+                val correctType = if (type == "song") path.startsWith("/song/") else path.startsWith("/podcast/") && !path.startsWith("/podcast/show/")
+                if (title.isBlank() || !correctType) return@mapNotNull null
+                val imageUrl = match.groupValues[2]
+                    .replace("&amp;", "&")
+                    .replace(Regex("([?&]w=)\\d+")) { "${it.groupValues[1]}256" }
+                MediaItem(title, itemUrl, imageUrl, type, metadata.substringAfter(" · ", "").trim())
+            }.distinctBy { it.url }.take(50).toList()
         } finally {
             connection.disconnect()
         }

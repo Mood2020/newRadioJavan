@@ -23,7 +23,7 @@ PAGE_HOSTS = {
     "www.play.radiojavan.com",
 }
 SHARE_HOSTS = {"rj.app", "www.rj.app"}
-# Radio Javan currently serves podcast audio from this CDN.
+# Radio Javan audio is served from its own domains and official media CDN.
 MEDIA_DOMAINS = ("radiojavan.com", "rjmedia-content.app")
 MAX_REDIRECTS = 4
 MAX_PAGE_BYTES = 5 * 1024 * 1024
@@ -278,7 +278,7 @@ def main() -> int:
         page_url = resolve_input_url(source_url)
         page, final_page_url = read_page(page_url)
         media_url = extract_media_url(page, final_page_url)
-        destination = Path("podcasts") / safe_filename(page_url)
+        destination = Path("media") / safe_filename(page_url)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
             raise fail(f"Refusing to overwrite existing file: {destination}")
