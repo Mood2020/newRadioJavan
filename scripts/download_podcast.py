@@ -59,6 +59,10 @@ MP3_URL_RE = re.compile(
     r"(?i)(?:https?:)?(?://|\\/\\/)[^\"'\s<>]+?\.mp3(?:\?[^\"'\s<>]*)?"
 )
 LINK_VALUE_RE = re.compile(r'(?i)["\']link["\']\s*:\s*["\']([^"\']+)["\']')
+PAGE_ITEM_ID_RE = re.compile(
+    r'(?i)app-argument=["\']?radiojavan://(?:podcast|song)/([A-Za-z0-9_-]+)'
+)
+PREMIUM_LABEL_RE = re.compile(r"(?i)Included\s+with\s+Premium")
 
 
 def fail(message: str) -> DownloadError:
@@ -189,8 +193,15 @@ def normalize_candidate(raw: str, page_url: str) -> str:
 
 
 def extract_media_url(page: str, page_url: str) -> str:
+    if PREMIUM_LABEL_RE.search(page):
+        raise fail(
+            "Radio Javan marks this item as Premium; refusing to retrieve or "
+            "publish its audio"
+        )
+
     candidates = MP3_URL_RE.findall(page)
     candidates.extend(LINK_VALUE_RE.findall(page))
+    media_urls = []
     for raw in candidates:
         candidate = normalize_candidate(raw, page_url)
         try:
@@ -198,7 +209,49 @@ def extract_media_url(page: str, page_url: str) -> str:
         except DownloadError:
             continue
         if urlsplit(candidate).path.lower().endswith(".mp3"):
-            return candidate
+            media_urls.append(candidate)
+
+    item_match = PAGE_ITEM_ID_RE.search(page)
+    if item_match:
+        item_id = item_match.group(1).lower()
+        item_urls = [
+            candidate
+            for candidate in media_urls
+            if Path(unquote(urlsplit(candidate).path)).name.lower().startswith(
+                f"{item_id}-"
+            )
+        ]
+        full_urls = [
+            candidate
+            for candidate in item_urls
+            if "/preview/" not in urlsplit(candidate).path.lower()
+        ]
+        if full_urls:
+            return full_urls[0]
+        if item_urls:
+            raise fail(
+                "Only a preview MP3 is listed for this item; "
+                "refusing to publish it as a full download"
+            )
+        raise fail("Could not find an MP3 for the requested item in the page")
+
+    has_preview = any(
+        "/preview/" in urlsplit(candidate).path.lower()
+        for candidate in media_urls
+    )
+    if has_preview:
+        raise fail(
+            "The requested item could not be identified safely on a page that "
+            "contains preview audio"
+        )
+
+    full_urls = [
+        candidate
+        for candidate in media_urls
+        if "/preview/" not in urlsplit(candidate).path.lower()
+    ]
+    if full_urls:
+        return full_urls[0]
     raise fail("Could not find an allowed MP3 URL in the page")
 
 
